@@ -1,0 +1,280 @@
+<?php
+
+require_once('uc_cron_gbase_token.include');
+
+// Menu Functions
+
+/**
+ * Implements hook_menu
+ * Menu items for this module
+ */
+function uc_cron_gbase_menu() {
+	$items = array();
+	$items['uc_cron_gbase'] = array(
+		'description'      => 'Ubercart Google Base Cron Integration.',
+	    'page callback'    => 'uc_cron_gbase_test',
+	    'access callback'  => 'user_access',
+	    'access arguments' => array('access content'),
+	    'type'             => MENU_CALLBACK,
+	  );
+	$items['uc_cron_gbase/exchange'] = array(
+		'description'      => 'Ubercart Google Base Cron Integration token exchange.',
+		'page callback'    => 'uc_cron_gbase_exchange_token',
+	    'access callback'  => 'user_access',
+	    'access arguments' => array('access content'),
+	    'type'             => MENU_CALLBACK,
+	);
+	$items['uc_cron_gbase/items'] = array(
+		'description'      => 'Ubercart Google Base Cron Integration items feed.',
+	    'page callback'    => 'uc_cron_gbase_get_products',
+	    'access callback'  => 'user_access',
+	    'access arguments' => array('access content'),
+	    'type'             => MENU_CALLBACK,
+	);
+	$items['admin/store/settings/uc_cron_gbase'] = array(
+	    'title'            => 'Ubercart Google Base Cron Integration',
+	    'description'      => 'Settings for Ubercart Google Base Integration.',
+	    'page callback'    => 'drupal_get_form',
+        'page arguments'   => array('uc_cron_gbase_store_admin_settings_form'),
+	    'access callback'  => 'user_access',
+	    'access arguments' => array('administer ubercart google base integration'),
+	    'type'             => MENU_NORMAL_ITEM,
+	);
+	return $items;
+}
+
+// End Menu Functions
+
+// Database Functions
+
+/**
+ * Insert gbase info into the database
+ */
+function uc_cron_gbase_db_insert($data) {
+	db_query("INSERT INTO {uc_cron_gbase} (nid, enabled, taxonomy, product_condition, new, created, updated)
+                         VALUES ('%d', '%d', '%s', '%d', '%d', NOW(),NOW())",
+                         $data['nid'],$data['enabled'],$data['taxonomy'],$data['product_condition']);
+}
+
+/**
+ * Load gbase info from the database
+ */
+function uc_cron_gbase_db_load($nid) {
+	$result = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,created,updated FROM {uc_cron_gbase} WHERE nid = %d', $nid));
+    return $result;
+}
+
+/**
+ * Update a product in the uc_cron_gbase table
+ */
+function uc_cron_gbase_db_update($data) {
+	db_query("UPDATE {uc_cron_gbase} SET enabled = '%d', taxonomy = '%s', product_condition = '%d', updated = NOW()
+						 WHERE nid = '%d'",
+                         $data['enabled'],$data['taxonomy'],$data['product_condition'],$data['nid']);
+}
+
+/**
+ * Delete a product from google base
+ *
+ */
+function uc_cron_gbase_db_delete($nid) {
+	db_query("DELETE FROM {uc_cron_gbase} WHERE nid = %d", $nid);
+}
+
+/**
+ * Disable a product in the uc_cron_gbase table
+ */
+function uc_cron_gbase_db_disable($nid) {
+	
+}
+
+/**
+ * Enable a product in the uc_cron_gbase table
+ */
+function uc_cron_gbase_db_enable($nid) {
+	
+}
+
+// End Database Functions
+
+
+// Gbase functions
+
+/**
+ * Add a product to gbase
+ */
+function uc_cron_gbase_add() {
+	
+}
+
+/**
+ * Update a product on gbase
+ */
+function uc_cron_gbase_update($gid) {
+	
+}
+
+/**
+ * Remove a product on gbase
+ */
+function uc_cron_gbase_remove() {
+	
+}
+
+/**
+ * Class that has functions for adding items to gbase
+ */
+class uc_cron_gbase_xml {
+    public $xml = NULL;
+    protected $namespace = 'http://base.google.com/ns/1.0';
+    protected $draftns = 'http://www.w3.org/2005/Atom';
+
+	function __construct() {
+		$xmltext = "<?xml version='1.0'?>\n<entry xmlns='http://www.w3.org/2005/Atom' xmlns:g='$this->namespace'></entry>";
+		$this->xml = simplexml_load_string($xmltext);
+	}
+
+	function add_element($name, $value, $type = NULL) {
+		$node = $this->xml->addChild($name, $value);
+		if (!empty($type)) {
+			$node->addAttribute('type', $type);
+		}
+	}
+
+	function add_attribute($name, $value, $type = NULL) {
+		$node = $this->xml->addChild('g:' . $name, $value, $this->namespace);
+		if (!empty($type)) {
+			$node->addAttribute('type', $type);
+		}
+	}
+
+	function set_draft($draft = FALSE) {
+		$value = empty($draft) ? 'no' : 'yes';
+		$control = $this->xml->addChild('app:control', NULL, $this->draftns);
+		$node = $control->addChild('app:draft', $value, $this->draftns);
+	}
+
+	public function __toString() {
+		return $this->xml->asXML();
+	}
+
+	public function get_xml() {
+		return $this->xml->asXML();
+	}
+}
+
+
+// End Gbase functions
+
+
+// Form Functions
+
+/**
+ * Implemets hook_form_alter
+ * Modify the product node add/edit form with gbase fields
+ */
+function uc_cron_gbase_form_alter(&$form, $form_state, $form_id) {
+	if ($form['type']['#value'] == 'product') {
+
+	    $form['uc_cron_gbase'] = array(
+	        '#type' => 'fieldset',
+	        '#title' => t('Ubercart Google Base Integration Settings'),
+	        '#collapsible' => TRUE,
+	        '#collapsed' => FALSE,
+	        '#tree' => TRUE,
+	    );
+
+		// If product should be submitted to Google Base
+	    $form['uc_cron_gbase']['enabled'] = array(
+			'#type'          => 'radios',
+			'#default_value' => isset($defaults['enabled']) ? $defaults['enabled'] : variable_get('uc_cron_gbase_enabled','1'),
+			'#options'       => array(
+				1 => t('Submit this product item to Google Merchant'),
+				0 => t('Do not submit this product item to Google Merchant.')
+	       )
+	    );
+
+	    // Allow used to enter product taxonomy to googles specs
+		$form['uc_cron_gbase']['taxonomy'] = array(
+			'#type'          => 'textfield',
+			'#title'         => t('Product Type'),
+			'#description'   =>'The category which this Product should be listed under on Google Product Search, 
+			        You Can refer to categories on <a href="http://www.google.com/support/merchants/bin/answer.py?hl=en&answer=160081">Google Merchant Help</a>,
+			        Or you can find the sheet on <a href="http://www.google.com/basepages/producttype/taxonomy.txt">Product Taxonomy</a>,
+			        An example of what you should enter in this field is:<br /> Electronics > Computers > Computer Components > Storage Devices > Hard Drives
+					',
+			'#size'          => 60,
+			'#maxlength'     => 255,
+			'#default_value' => isset($defaults['product_type']) ? $defaults['product_type'] : variable_get('uc_cron_gbase_default_taxonomy', ''),
+		);
+	
+	    $form['uc_cron_gbase']['product_condition'] = array(
+	        '#type'          => 'radios',
+	        '#title'         => 'Product Condition',
+	        '#default_value' => isset($defaults['product_condition']) ? $defaults['product_condition'] : variable_get('uc_cron_gbase_default_condition', 0),
+	        '#options'       => array(
+	            t('New'),
+	            t('Used'),
+	            t('Refurbished')
+			)
+	    );	   
+	 } // form type value
+
+
+}
+
+/**
+ * Load form defaults for a node id (nid)
+ */
+function uc_cron_gbase_load_defaults($nid) {
+	
+}
+
+// End Form Functions
+
+
+// Cron Functions
+/**
+ * Implements hook_cron?
+ * Go through all products and add/update/remove them to gbase
+ */
+function uc_cron_gbase_cron() {
+	
+}
+// End cron functions
+
+
+// Node Functions
+
+/**
+ * Implements hook_nodeapi
+ * Save/update/delete gbase data from db when product node is edited
+ */
+function uc_cron_gbase_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {	
+	if($node->type == 'product') {
+		switch($op) {
+			case 'load':
+				$result = $node->uc_cron_gbase_id = @uc_cron_gbase_db_load($node->nid);
+				return array('uc_cron_gbase' => $result);
+				break;
+			case 'insert':
+				$node->uc_cron_gbase['nid'] = $node->nid;
+				uc_cron_gbase_db_insert($node->uc_cron_gbase);
+				break;
+			case 'update':
+				$node->uc_cron_gbase['nid'] = $node->nid;
+				uc_cron_gbase_db_update($node->uc_cron_gbase);			
+				break;
+			case 'delete':
+				// @todo add remove from google base code before removing from database, if fails warn user but delete row anyway
+				// For it's safe to say the node will be deleted so we can't update gbase from a missing node anyways.
+				drupal_set_message('Product has not been removed from google base because i have not implemented this yet :)');
+				uc_cron_gbase_db_delete($node->nid);
+				break;
+		}
+	}
+}
+
+
+// End Node Functions
+

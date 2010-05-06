@@ -1,0 +1,6 @@
+name =  Ubercart Google Base Cron Integration
+description = Enables Ubercart products to be published, updated and deleted from Google Base via cron.
+core = 6.x
+dependencies[] = uc_product
+package = "Ubercart - extra"
+php = 5.0

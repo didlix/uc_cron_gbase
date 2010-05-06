@@ -1,0 +1,181 @@
+<?php
+
+require_once('uc_cron_gbase_token.include');
+
+function uc_cron_gbase_token($new_token = NULL) {
+    static $token;
+
+    if (!empty($new_token)) {
+        $new_token = trim($new_token);
+        variable_set('uc_gbase_token', uc_gbase_encrypt($new_token));
+        $token = $new_token;
+    } elseif (empty($token)) {
+        $token = uc_gbase_decrypt(variable_get('uc_gbase_token', NULL));
+    }
+    return $token;
+}
+
+function uc_cron_gbase_check_token($token) {
+	$token_info_url = 'https://www.google.com/accounts/AuthSubTokenInfo';
+	$headers = array(
+		'Content-Type' => 'application/x-www-form-urlencoded',
+		'Authorization' => 'AuthSub token="' . $token . '"',
+	);
+	$result = drupal_http_request($token_info_url, $headers);
+	return ($result->code == 200);
+}
+
+function uc_cron_gbase_exchange_token() {
+	$url = 'https://www.google.com/accounts/AuthSubSessionToken';
+	$token = $_GET['token'];
+
+	$headers = array('Authorization' => 'AuthSub token="' . $token . '"');
+	$result = drupal_http_request($url, $headers);
+
+	list($temp, $token) = explode('=', $result->data, 2);
+
+	if (empty($token)) {
+		watchdog('uc_cron_gbase', t('Failed to receive AuthSub session token.'), NULL, WATCHDOG_ERROR);
+		drupal_set_message(t('Failed to receive AuthSub session token.'), 'error');
+	}
+
+	uc_cron_gbase_token($token);
+	drupal_goto('admin/store/settings/uc_cron_gbase');
+}
+
+function uc_cron_gbase_headers() {
+	$token = uc_cron_gbase_token();
+	$developer_key = variable_get('uc_cron_gbase_key', '');
+	$headers = array(
+		'Content-Type' => 'application/atom+xml',
+		'Authorization' => 'AuthSub token="' . trim($token) . '"',
+	);
+	if (!empty($developer_key)) {
+		$headers['X-Google-Key'] = 'key=' . $developer_key;
+	}
+	return $headers;
+}
+
+function uc_cron_gbase_encrypt($string) {
+	$key = uc_cron_gbase_get_key();
+	$result = '';
+	for($i=0; $i<strlen($string); $i++) {
+		$char = substr($string, $i, 1);
+		$keychar = substr($key, ($i % strlen($key))-1, 1);
+		$char = chr(ord($char)+ord($keychar));
+		$result.=$char;
+	}
+
+	return base64_encode($result);
+}
+
+function uc_cron_gbase_decrypt($string) {
+	$key = uc_cron_gbase_get_key();
+	$result = '';
+	$string = base64_decode($string);
+
+	for($i=0; $i<strlen($string); $i++) {
+		$char = substr($string, $i, 1);
+		$keychar = substr($key, ($i % strlen($key))-1, 1);
+		$char = chr(ord($char)-ord($keychar));
+		$result.=$char;
+	}
+
+	return $result;
+}
+
+function uc_cron_gbase_get_key() {
+	global $cookie_domain, $db_url;
+	return md5($cookie_domain . $db_url . $_SERVER['SERVER_NAME']);
+}
+
+
+function uc_cron_gbase_store_admin_settings_form() {
+
+// variable_get('uc_currency_sign', 'moo');
+
+	$form = array();
+	$form['authentication'] = array(
+	    '#type' => 'fieldset',
+	    '#title' => t('Authentication'),
+	    '#collapsible' => FALSE,
+		'#collapsed' => FALSE,
+	);
+	
+	$form['settings'] = array(
+	    '#type' => 'fieldset',
+	    '#title' => t('Settings'),
+	    '#collapsible' => FALSE,
+		'#collapsed' => FALSE,
+	);	
+
+    $form['settings']['uc_cron_gbase_enabled'] = array(
+		'#type'          => 'radios',
+		'#default_value' => variable_get('uc_cron_gbase_enabled',1),
+		'#options'       => array(
+			1 => t('Submit new/edited products item to Google Merchant by default.'),
+			0 => t('Do not submit new/edited product items to Google Merchant by default.')
+        ),
+		'#description'   => 'Control if products on new / edited products should be submitted to Google Merchant by default'
+
+    );
+	
+	$form['settings']['uc_cron_gbase_default_taxonomy'] = array(
+	    '#type' => 'textfield',
+	    '#title' => t('Default Taxonomy'),
+	    '#size' => 60,
+	    '#maxlength' => 500,
+	    '#required' => TRUE,
+		'#description'   =>'The default category which this Product should be listed under on Google Product Search, 
+		        You Can refer to categories on <a href="http://www.google.com/support/merchants/bin/answer.py?hl=en&answer=160081">Google Merchant Help</a>,
+		        Or you can find the sheet on <a href="http://www.google.com/basepages/producttype/taxonomy.txt">Product Taxonomy</a>,
+		        An example of what you should enter in this field is:<br /> Electronics > Computers > Computer Components > Storage Devices > Hard Drives
+				',	
+		'#default_value' => variable_get('uc_cron_gbase_default_taxonomy', ''),
+	);
+	
+    $form['settings']['uc_cron_gbase_default_condition'] = array(
+        '#type'          => 'radios',
+        '#title'         => 'Product Condition',
+        '#default_value' => variable_get('uc_cron_gbase_default_condition', 0),
+        '#options'       => array(
+            t('New'),
+            t('Used'),
+            t('Refurbished')
+		),
+		'#description'  => 'Set the default condition of your products'
+    );	
+
+	$token = uc_cron_gbase_token();
+
+    // Check if token is still valid.
+	if(uc_cron_gbase_check_token($token)) {
+	    $status = theme('image', 'misc/watchdog-ok.png', t('Authenticated'), t('Authenticated')) . ' ' . t("You have successfully signed in to your Google Account.");
+	} else {
+		$itemsFeedURL = 'http://www.google.com/base/feeds/items';
+		$next_url = url('uc_cron_gbase/exchange', array('absolute' => TRUE));
+		$redirect_url = 'https://www.google.com/accounts/AuthSubRequest?session=1';
+		$redirect_url .= '&next=';
+		$redirect_url .= urlencode($next_url);
+		$redirect_url .= "&scope=";
+		$redirect_url .= urlencode($itemsFeedURL);
+
+		$status = theme('image', 'misc/watchdog-error.png', t('Error'), t('Error')) . ' ' . t('You must') . ' ' . l('sign in to your Google account', $redirect_url) . '.';
+	}
+	
+	$form['authentication']['status'] = array(
+		'#value' => $status,
+	);
+
+	$form['authentication']['uc_cron_gbase_key'] = array(
+	    '#type' => 'textfield',
+	    '#title' => t('Developer Key'),
+	    '#size' => 60,
+	    '#maxlength' => 255,
+	    '#required' => TRUE,
+		'#default_value' => variable_get('uc_cron_gbase_key', ''),
+	);
+
+	$form = system_settings_form($form);
+	return $form;
+}

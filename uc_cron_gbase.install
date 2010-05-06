@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * @file uc_cron_gbase.install
+ *
+ * Contains install and update functions for Afterhours Ubercart Google Base Integration
+ */
+
+/**
+ * Implementation of hook_install().
+ */
+function uc_cron_gbase_requirements($phase) {
+
+  $requirements = array();
+  $t = get_t();
+
+  if ($phase == 'runtime') {
+    $itemsFeedURL = 'http://www.google.com/base/feeds/items';
+
+    $token = uc_cron_gbase_token();
+
+    $next_url      = url('uc_cron_gbase/exchange', array('absolute' => TRUE));
+    $redirect_url  = 'https://www.google.com/accounts/AuthSubRequest?session=1';
+    $redirect_url .= '&next=';
+    $redirect_url .= urlencode($next_url);
+    $redirect_url .= "&scope=";
+    $redirect_url .= urlencode($itemsFeedURL);
+
+    if (!uc_cron_gbase_check_token($token)) {
+      $requirements['uc_cron_gbase_auth'] = array(
+        'title' => $t('Ubercart Google Base Integration'),
+        'value' => $t('Authentication failure'),
+        'severity' => REQUIREMENT_ERROR,
+        'description' => $t('Your Google Base authentication token has expired. Please <a href="!url">login to your Google Account</a>.', array('!url' => url($redirect_url))),
+      );
+    }
+    else {
+      $requirements['uc_cron_gbase_auth'] = array(
+        'title' => $t('Ubercart Google Base Integration'),
+        'value' => $t('Authentication successful'),
+        'severity' => REQUIREMENT_OK,
+        'description' => $t('Ubercart Google Base Integration is successful'),
+      );
+    }
+  }
+ // elseif ($phase == 'install') {
+    if (!function_exists('simplexml_load_string')) {
+      $requirements['simplexml'] = array(
+        'title' => $t('SimpleXML'),
+        'value' => $t('Not found'),
+        'severity' => REQUIREMENT_ERROR,
+        'description' => $t('The SimpleXML extension for PHP required by the Ubercart Google Base Integration module is not enabled. See <a href="!url">this page</a> for more information.', array('!url' => url('http://us.php.net/manual/en/intro.simplexml.php'))),
+      );
+    }
+    if (!function_exists('openssl_open')) {
+      $requirements['simplexml'] = array(
+        'title' => $t('OpenSSL'),
+        'value' => $t('Not found'),
+        'severity' => REQUIREMENT_ERROR,
+        'description' => $t('The OpenSSL extension for PHP required by the Ubercart Google Base Integration module is not enabled. See <a href="!url">this page</a> for more information.', array('!url' => url('http://us2.php.net/manual/en/book.openssl.php'))),
+      );
+    }
+  //}
+
+
+  return $requirements;
+}
+
+/**
+ * Implementation of hook_install().
+ */
+function uc_cron_gbase_install() {
+  // Create tables.
+  $result = drupal_install_schema('uc_cron_gbase');
+  if ($result[0]['success']) {
+    drupal_set_message('Google Base Cron Integration module has been successfully installed.');
+  } else {
+	drupal_set_message('Failed to install Google Base Cron Module');
+  }
+}
+
+/**
+* Implementation of hook_schema().
+*/
+function uc_cron_gbase_schema() {
+  $schema = array();
+  uc_cron_gbase_table_uc_cron_gbase($schema);
+  return $schema;
+}
+
+/**
+* Contains the database schema for the uc_cron_gbase table.
+*/
+function uc_cron_gbase_table_uc_cron_gbase(&$schema) {
+  $schema['uc_cron_gbase'] = array(
+    'description' => t('Stores the data for products submitted to Google Base.'),
+    'fields' => array(
+    	'nid' => array(
+	        'type'        => 'int',
+	        'unsigned'    => TRUE,
+	        'not null'    => TRUE,
+	        'description' => t('Drupal node ID.')
+	    ),
+	    'gid' => array(
+	        'type'        => 'varchar',
+	        'length'      => '25',
+	        'not null'    => TRUE,
+	        'description' => t('The id assigned by Google Base.')
+	    ),
+		'enabled' => array(
+		    'type'        => 'int',
+		    'not null'    => FALSE,
+		    'description' => t('1 if product is enabled for cron')
+		),
+		'taxonomy' => array(
+		    'type'        => 'text',
+			'length'      => 250,
+		    'not null'    => FALSE,
+		    'description' => t('products gbase taxonomy')
+		),		
+		'product_condition' => array(
+		    'type'        => 'text',
+			'length'      => 11,
+		    'not null'    => FALSE,
+		    'description' => t('products condition')
+		),		
+		'new' => array(
+		    'type'        => 'int',
+		    'not null'    => FALSE,
+		    'description' => t('TRUE if needs to be inserted on gbase by cron.')
+		),
+		'created' => array(
+		    'description' => t('Date/Time row created'),
+		    'type'        => 'datetime',
+		    'not null'    => TRUE,
+		    'default'     => 0
+		),	
+		'updated' => array(
+		    'description' => t('Date/Time row updated'),
+		    'type'        => 'datetime',
+		    'not null'    => TRUE,
+		    'default'     => 0
+		)
+	), // End Fields
+    'primary key' => array('nid')
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function uc_cron_gbase_uninstall() {
+  drupal_uninstall_schema('uc_cron_gbase');
+}
