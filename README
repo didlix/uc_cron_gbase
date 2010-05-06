@@ -4,3 +4,6 @@ So I have decided to create a seperate module that will hopefully be cleaner, le
 I have added a bunch of settings (so you can control if products are submitted automatically, default taxonomy, default conditions).
 I have removed payment options since they don't seem to be a part of google base' search in any way.
 Currency will load from ubercart, not be hardcoded to US and tax will be calculated.
+
+
+Development of this is being funded by my friends at www.afterhours.co.uk - they sell gaming stuff, games are cool
