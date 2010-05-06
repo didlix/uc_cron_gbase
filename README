@@ -1,0 +1,6 @@
+This module borrows from the uc_gbase module which borrowed from the googlebase module.
+The latter does not work so well with Ubercart and the former had many bugs and no cron implementation.
+So I have decided to create a seperate module that will hopefully be cleaner, less buggy and more featureful.
+I have added a bunch of settings (so you can control if products are submitted automatically, default taxonomy, default conditions).
+I have removed payment options since they don't seem to be a part of google base' search in any way.
+Currency will load from ubercart, not be hardcoded to US and tax will be calculated.
