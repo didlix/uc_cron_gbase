@@ -143,6 +143,10 @@ function uc_cron_gbase_add($node) {
 	$item->add_attribute('product_type', htmlspecialchars($node->uc_cron_gbase['taxonomy']), 'text');
 	$item->add_attribute('price',        $node->sell_price*1.175, 'floatUnit'); // @todo calculate correct tax based on ubercart
 	
+	$conditions = array(0 => 'New', 1 => 'Used', 2 => 'Refurbished');
+	$item->add_attribute('condition', $conditions[$node->uc_cron_gbase['product_condition']]);
+  
+	
 	if ($node->shippable) {
 		$item->add_attribute('weight', $node->weight.' '.$node->weight_units);
 		$item->add_attribute('width',  intval($node->width).' '.$node->length_units);
@@ -176,7 +180,7 @@ function uc_cron_gbase_add($node) {
 			$xml = new SimpleXMLElement($result->data);
 		    foreach ($xml->error as $error) {
 				if (user_access('administer google base')) {
-					drupal_set_message(t('Google Base error: @reason', array('@reason' => (string) $error['reason'])), 'error');
+					echo t('Google Base error: @reason', array('@reason' => (string) $error['reason']));
 				}
 		    }
 		}
