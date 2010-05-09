@@ -40,6 +40,14 @@ function uc_cron_gbase_menu() {
 	    'access arguments' => array('administer ubercart google base integration'),
 	    'type'             => MENU_NORMAL_ITEM,
 	);
+	$items['uc_cron_gbase/update'] = array(
+	    'title'            => 'Ubercart Google Base Cron Integration',
+	    'description'      => 'Settings for Ubercart Google Base Integration.',
+	    'page callback'    => 'uc_cron_gbase_update_all',
+	    'page arguments'   => array('uc_cron_gbase_update_all'),
+	    'access callback'  => 'user_access',
+	    'type'             => MENU_NORMAL_ITEM,
+	);	
 	return $items;
 }
 
@@ -52,7 +60,7 @@ function uc_cron_gbase_menu() {
  */
 function uc_cron_gbase_db_insert($data) {
 	db_query("INSERT INTO {uc_cron_gbase} (nid, enabled, taxonomy, product_condition, new, created, updated)
-                         VALUES ('%d', '%d', '%s', '%d', '%d', NOW(),NOW())",
+                         VALUES ('%d', '%d', '%s', '%d', 1, NOW(),NOW())",
                          $data['nid'],$data['enabled'],$data['taxonomy'],$data['product_condition']);
 }
 
@@ -103,7 +111,83 @@ function uc_cron_gbase_db_enable($nid) {
 /**
  * Add a product to gbase
  */
-function uc_cron_gbase_add() {
+function uc_cron_gbase_add($node) {
+
+	$item = new uc_cron_gbase_xml();
+	global $base_url;
+
+	$uc_gbase = $node->uc_gbase;
+
+	// Link product back to owners website
+	// @todo find out why this is not working
+	$link = $item->xml->addChild('link');
+	$link->addAttribute('href',$base_url.'/'.$node->path);
+	$link->addAttribute('rel','alternative');
+	$link->addAttribute('type','text/html');
+
+	$item->add_attribute('item_type',       'products');
+	$item->add_attribute('target_language', 'en');
+	$item->add_attribute('target_country',  variable_get('uc_cron_gbase_target_country', 'GB'));
+
+	$item->add_element('title',   $node->title, 'text');
+	$item->add_element('content', htmlspecialchars($node->body) , 'html');
+	$item->add_element('summary', htmlspecialchars($node->teaser));
+
+	$item->add_attribute('id',           $node->nid);
+	$item->add_attribute('product_type', htmlspecialchars($node->uc_cron_gbase['taxonomy']), 'text');
+	$item->add_attribute('price',        $node->sell_price*1.175, 'floatUnit'); // @todo calculate correct tax based on ubercart
+	
+	if ($node->shippable) {
+		$item->add_attribute('weight', $node->weight.' '.$node->weight_units);
+		$item->add_attribute('width',  intval($node->width).' '.$node->length_units);
+		$item->add_attribute('length', intval($node->length).' '.$node->length_units);
+		$item->add_attribute('height', intval($node->height).' '.$node->length_units);
+	}	
+	
+	$headers = uc_gbase_headers();
+	$items_feed_url = 'http://www.google.com/base/feeds/items';
+	$method = 'POST';	
+	
+	// If we have a google base id, use PUT instead of POST to perform an update
+	if (!empty($data->uc_cron_gbase['gid'])) {
+	  $items_feed_url .= '/' . $data->uc_cron_gbase['gid'];
+	  $method = 'PUT';
+	}
+	
+	$uc_cron_gbase_xml = $item->get_xml();  
+
+	$result = drupal_http_request($items_feed_url, $headers, $method, $uc_cron_gbase_xml);
+
+	if (($result->code == '200' || $result->code == '201') && !empty($result->headers['Location'])) {
+		return substr(strrchr($result->headers['Location'], '/'), 1);
+	}
+	elseif ($result->code == '404') {
+		if (!empty($node->uc_gbase_id)) {
+			uc_cron_gbase_delete($node->nid);
+			unset($node->uc_gbase_id);
+			return _uc_cron_gbase_insert_xml($node);
+		} else {
+			$xml = new SimpleXMLElement($result->data);
+		    foreach ($xml->error as $error) {
+				if (user_access('administer google base')) {
+					drupal_set_message(t('Google Base error: @reason', array('@reason' => (string) $error['reason'])), 'error');
+				}
+		    }
+		}
+	}
+	if (user_access('administer ubercart google base integration')) {
+		$xml = new SimpleXMLElement($result->data);
+		foreach ($xml->error as $error) {
+ 			$field = (string) $error['field'];
+			if (!empty($field)) {
+				drupal_set_message(t('Error on Google Base field %field: @reason', array('%field' => $field, '@reason' => (string) $error['reason'])), 'error');
+			} else {
+				drupal_set_message(t('Google Base error: @reason', array('@reason' => (string) $error['reason'])), 'error');
+			}
+		}
+	}
+
+	return FALSE;	
 	
 }
 
@@ -240,6 +324,9 @@ function uc_cron_gbase_load_defaults($nid) {
  */
 function uc_cron_gbase_cron() {
 	
+	$results = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,created,updated FROM {uc_cron_gbase}'));
+	dpm($results);
+	
 }
 // End cron functions
 
@@ -277,4 +364,30 @@ function uc_cron_gbase_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
 
 
 // End Node Functions
+
+
+
+/**
+ * Update/Add products to google base
+ * @todo make into hook_cron and not be a page
+ */
+function uc_cron_gbase_update_all() {
+	// Used to calculate products that need to be renewed
+	$thirty_days_ago = time() - 2592000;
+	$thirty_days_ago = time() - 300; // 5 mins ago for testing
+	
+	$results = db_query('SELECT *,UNIX_TIMESTAMP(updated) AS "timestamp" FROM {uc_cron_gbase}');
+	while($result = db_fetch_array($results)) {
+		if($result['new'] == 1 && $result['enabled'] == 1) {
+			$node = node_load($result['nid']);
+			uc_cron_gbase_add($node); // Add to Google Base
+			echo 'added ' . $node->nid . '<br />';
+		} else if($result['timestamp'] <= $thirty_days_ago && $result['enabled'] == 1 && $result['new'] == 0) {
+			$node = node_load($result['nid']);
+			uc_cron_gbase_update($node); // Update on google base
+			echo 'updated ' . $node->nid . '<br />';
+		}
+		unset($node); // Make sure the node is unset so does not carry over
+	}
+}
 

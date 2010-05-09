@@ -175,6 +175,8 @@ function uc_cron_gbase_store_admin_settings_form() {
 	    '#required' => TRUE,
 		'#default_value' => variable_get('uc_cron_gbase_key', ''),
 	);
+	
+	// @todo add variable_get('uc_cron_gbase_key', '') form field
 
 	$form = system_settings_form($form);
 	return $form;
