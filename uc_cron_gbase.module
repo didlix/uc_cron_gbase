@@ -388,6 +388,22 @@ function uc_cron_gbase_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
 
 // End Node Functions
 
+/**
+ * Insert all products into the gbase queue
+ * @todo check if they already exist
+ * @todo write properly, at present this was used as a hack to get everything in for testing
+ */
+function uc_cron_gbase_db_insert_all() {
+	$results = db_query("select nid from {node} WHERE type = 'product'");
+	while($result = db_fetch_array($results)) {
+		$node = node_load($result['nid']);
+		$node->uc_cron_gbase['nid'] = $node->nid;
+		$node->uc_cron_gbase['enabled'] = 1;
+		$node->uc_cron_gbase['taxonomy'] = 'Computers';
+		uc_cron_gbase_db_insert($node->uc_cron_gbase);
+		unset($node);
+	}
+}
 
 
 /**
@@ -395,6 +411,7 @@ function uc_cron_gbase_nodeapi(&$node, $op, $a3 = NULL, $a4 = NULL) {
  * @todo make into hook_cron and not be a page
  */
 function uc_cron_gbase_update_all() {
+
 	// Used to calculate products that need to be renewed
 	$thirty_days_ago = time() - 2592000;
 	$thirty_days_ago = time() - 300; // 5 mins ago for testing
@@ -413,4 +430,6 @@ function uc_cron_gbase_update_all() {
 		unset($node); // Make sure the node is unset so does not carry over
 	}
 }
+
+
 
