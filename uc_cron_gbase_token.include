@@ -10,7 +10,7 @@ function uc_cron_gbase_token($new_token = NULL) {
         variable_set('uc_gbase_token', uc_gbase_encrypt($new_token));
         $token = $new_token;
     } elseif (empty($token)) {
-        $token = uc_gbase_decrypt(variable_get('uc_gbase_token', NULL));
+        $token = uc_cron_gbase_decrypt(variable_get('uc_gbase_token', NULL));
     }
     return $token;
 }
