@@ -76,9 +76,15 @@ function uc_cron_gbase_db_load($nid) {
  * Update a product in the uc_cron_gbase table
  */
 function uc_cron_gbase_db_update($data) {
-	db_query("UPDATE {uc_cron_gbase} SET enabled = '%d', taxonomy = '%s', product_condition = '%d', updated = NOW()
-						 WHERE nid = '%d'",
-                         $data['enabled'],$data['taxonomy'],$data['product_condition'],$data['nid']);
+	
+	$result = db_fetch_array(db_query("SELECT nid FROM {uc_cron_gbase} WHERE nid = '%d'",$data['nid']));
+	if(false === $result) { // Product is not in the uc_cron_gbase table, so add it instead
+		uc_cron_gbase_db_insert($data);
+	} else {
+		db_query("UPDATE {uc_cron_gbase} SET enabled = '%d', taxonomy = '%s', product_condition = '%d', updated = NOW()
+							 WHERE nid = '%d'",
+	                         $data['enabled'],$data['taxonomy'],$data['product_condition'],$data['nid']);
+	}
 }
 
 /**
