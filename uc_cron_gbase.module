@@ -150,7 +150,7 @@ function uc_cron_gbase_add($node) {
 		$item->add_attribute('height', intval($node->height).' '.$node->length_units);
 	}	
 	
-	$headers = uc_gbase_headers();
+	$headers = uc_cron_gbase_headers();
 	$items_feed_url = 'http://www.google.com/base/feeds/items';
 	$method = 'POST';	
 	
@@ -209,6 +209,19 @@ function uc_cron_gbase_update($gid) {
  */
 function uc_cron_gbase_remove() {
 	
+}
+
+function uc_cron_gbase_headers() {
+  $token = uc_gbase_token();
+  $developer_key = variable_get('uc_gbase_key', '');
+  $headers = array(
+    'Content-Type' => 'application/atom+xml',
+    'Authorization' => 'AuthSub token="' . trim($token) . '"',
+  );
+  if (!empty($developer_key)) {
+    $headers['X-Google-Key'] = 'key=' . $developer_key;
+  }
+  return $headers;
 }
 
 /**
