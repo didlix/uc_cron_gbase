@@ -43,19 +43,6 @@ function uc_cron_gbase_exchange_token() {
 	drupal_goto('admin/store/settings/uc_cron_gbase');
 }
 
-function uc_cron_gbase_headers() {
-	$token = uc_cron_gbase_token();
-	$developer_key = variable_get('uc_cron_gbase_key', '');
-	$headers = array(
-		'Content-Type' => 'application/atom+xml',
-		'Authorization' => 'AuthSub token="' . trim($token) . '"',
-	);
-	if (!empty($developer_key)) {
-		$headers['X-Google-Key'] = 'key=' . $developer_key;
-	}
-	return $headers;
-}
-
 function uc_cron_gbase_encrypt($string) {
 	$key = uc_cron_gbase_get_key();
 	$result = '';
@@ -150,7 +137,7 @@ function uc_cron_gbase_store_admin_settings_form() {
 
     // Check if token is still valid.
 	if(uc_cron_gbase_check_token($token)) {
-	    $status = theme('image', 'misc/watchdog-ok.png', t('Authenticated'), t('Authenticated')) . ' ' . t("You have successfully signed in to your Google Account.");
+	    $status = theme('image', 'misc/watchdog-ok.png', t('Authenticatedthenticated'), t('Authenticated')) . ' ' . t("You have successfully signed in to your Google Account.");
 	} else {
 		$itemsFeedURL = 'http://www.google.com/base/feeds/items';
 		$next_url = url('uc_cron_gbase/exchange', array('absolute' => TRUE));

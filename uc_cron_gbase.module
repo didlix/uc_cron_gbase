@@ -212,7 +212,7 @@ function uc_cron_gbase_remove() {
 }
 
 function uc_cron_gbase_headers() {
-  $token = uc_gbase_token();
+  $token = uc_cron_gbase_token();
   $developer_key = variable_get('uc_gbase_key', '');
   $headers = array(
     'Content-Type' => 'application/atom+xml',
