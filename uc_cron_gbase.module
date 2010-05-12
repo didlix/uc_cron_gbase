@@ -90,8 +90,8 @@ function uc_cron_gbase_db_update($data) {
 /**
  * Add the google id to a product
  */
-function uc_cron_gbase_db_set_gid($nid,$gid) {
-	db_query("UPDATE {uc_cron_gbase} SET gid = '%d' WHERE nid = '%d'",$gid,$nid);
+function uc_cron_gbase_db_set_added($nid,$gid) {
+	db_query("UPDATE {uc_cron_gbase} SET gid = '%d', new = '0' WHERE nid = '%d'",$gid,$nid);
 }
 
 /**
@@ -160,14 +160,20 @@ function uc_cron_gbase_add($node) {
 		$item->add_attribute('length', intval($node->length).' '.$node->length_units);
 		$item->add_attribute('height', intval($node->height).' '.$node->length_units);
 	}	
+
+	$images = uc_cron_gbase_get_image_list($node->field_image_cache);
+
+	foreach($images as $image){
+		$item->add_attribute('image_link', $image);
+	}	
 	
 	$headers = uc_cron_gbase_headers();
 	$items_feed_url = 'http://www.google.com/base/feeds/items';
 	$method = 'POST';	
 	
 	// If we have a google base id, use PUT instead of POST to perform an update
-	if (!empty($data->uc_cron_gbase['gid'])) {
-	  $items_feed_url .= '/' . $data->uc_cron_gbase['gid'];
+	if (!empty($node->uc_cron_gbase['gid'])) {
+	  $items_feed_url .= '/' . $node->uc_cron_gbase['gid'];
 	  $method = 'PUT';
 	}
 	
@@ -177,12 +183,12 @@ function uc_cron_gbase_add($node) {
 
 	if (($result->code == '200' || $result->code == '201') && !empty($result->headers['Location'])) {
 		$gid = substr(strrchr($result->headers['Location'], '/'), 1);
-		uc_cron_gbase_db_set_gid($node->nid,$gid);
+		uc_cron_gbase_db_set_added($node->nid,$gid);
 		return TRUE;
 	} elseif ($result->code == '404') {
-		if (!empty($node->uc_gbase_id)) {
+		if (!empty($node->uc_cron_gbase['gid'])) {
 			uc_cron_gbase_delete($node->nid);
-			unset($node->uc_gbase_id);
+			unset($node->uc_cron_gbase['gid']);
 			return _uc_cron_gbase_insert_xml($node);
 		} else {
 			$xml = new SimpleXMLElement($result->data);
@@ -439,7 +445,7 @@ function uc_cron_gbase_update_all() {
 	}
 }
 
-function uc_cron_gbase_get_images_list($form_image_fields){
+function uc_cron_gbase_get_image_list($form_image_fields){
 
     global $base_url;
 
