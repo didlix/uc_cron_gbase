@@ -91,7 +91,7 @@ function uc_cron_gbase_db_update($data) {
  * Add the google id to a product
  */
 function uc_cron_gbase_db_set_added($nid,$gid) {
-	db_query("UPDATE {uc_cron_gbase} SET gid = '%d', new = '0' WHERE nid = '%d'",$gid,$nid);
+	db_query("UPDATE {uc_cron_gbase} SET gid = '%s', new = '0' WHERE nid = '%d'",$gid,$nid);
 }
 
 /**
@@ -180,17 +180,17 @@ function uc_cron_gbase_add($node) {
 	$uc_cron_gbase_xml = $item->get_xml();  
 
 	$result = drupal_http_request($items_feed_url, $headers, $method, $uc_cron_gbase_xml);
-
 	if (($result->code == '200' || $result->code == '201') && !empty($result->headers['Location'])) {
 		$gid = substr(strrchr($result->headers['Location'], '/'), 1);
 		uc_cron_gbase_db_set_added($node->nid,$gid);
 		return TRUE;
-	} elseif ($result->code == '404') {
+	} elseif ($result->code == '404') { // We are doing an update (see $method = 'PUT') but the product page 404'ed
 		if (!empty($node->uc_cron_gbase['gid'])) {
-			uc_cron_gbase_delete($node->nid);
+			// let's try inserting this time, unset the gid so it doesn't try an update
 			unset($node->uc_cron_gbase['gid']);
-			return _uc_cron_gbase_insert_xml($node);
+			return uc_cron_gbase_add($node);
 		} else {
+			// it's all gone fubar, give me some errors
 			$xml = new SimpleXMLElement($result->data);
 		    foreach ($xml->error as $error) {
 				if (user_access('administer google base')) {
@@ -438,7 +438,7 @@ function uc_cron_gbase_update_all() {
 			echo 'added ' . $node->nid . '<br />';
 		} else if($result['timestamp'] <= $thirty_days_ago && $result['enabled'] == 1 && $result['new'] == 0) {
 			$node = node_load($result['nid']);
-			uc_cron_gbase_update($node); // Update on google base
+			uc_cron_gbase_add($node); // Update on google base
 			echo 'updated ' . $node->nid . '<br />';
 		}
 		unset($node); // Make sure the node is unset so does not carry over
