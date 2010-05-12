@@ -88,6 +88,13 @@ function uc_cron_gbase_db_update($data) {
 }
 
 /**
+ * Add the google id to a product
+ */
+function uc_cron_gbase_db_set_gid($nid,$gid) {
+	db_query("UPDATE {uc_cron_gbase} SET gid = '%d' WHERE nid = '%d'",$gid,$nid);
+}
+
+/**
  * Delete a product from google base
  *
  */
@@ -169,9 +176,10 @@ function uc_cron_gbase_add($node) {
 	$result = drupal_http_request($items_feed_url, $headers, $method, $uc_cron_gbase_xml);
 
 	if (($result->code == '200' || $result->code == '201') && !empty($result->headers['Location'])) {
-		return substr(strrchr($result->headers['Location'], '/'), 1);
-	}
-	elseif ($result->code == '404') {
+		$gid = substr(strrchr($result->headers['Location'], '/'), 1);
+		uc_cron_gbase_db_set_gid($node->nid,$gid);
+		return TRUE;
+	} elseif ($result->code == '404') {
 		if (!empty($node->uc_gbase_id)) {
 			uc_cron_gbase_delete($node->nid);
 			unset($node->uc_gbase_id);
@@ -431,5 +439,24 @@ function uc_cron_gbase_update_all() {
 	}
 }
 
+function uc_cron_gbase_get_images_list($form_image_fields){
 
+    global $base_url;
 
+    $images = '';
+    
+    //TODO: this is a kludge to suppress warnings.  The data is not arriving here on save.
+    if(!is_array($form_image_fields)) {
+    	return array();
+	}
+
+    foreach($form_image_fields as $image){
+        $image_item = isset($image['#default_value'])? $image['#default_value'] : $image;
+        if(strlen($image_item['filepath']) > 1 && !empty ($image_item['filepath']))
+        $images = $images.$base_url.'/'.$image_item['filepath'].'$';
+     }
+
+    $images_list = explode('$', $images);
+    array_pop($images_list);
+    return $images_list;
+}
