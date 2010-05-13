@@ -59,9 +59,9 @@ function uc_cron_gbase_menu() {
  * Insert gbase info into the database
  */
 function uc_cron_gbase_db_insert($data) {
-	db_query("INSERT INTO {uc_cron_gbase} (nid, enabled, taxonomy, product_condition, new, created, updated)
-                         VALUES ('%d', '%d', '%s', '%d', 1, NOW(),NOW())",
-                         $data['nid'],$data['enabled'],$data['taxonomy'],$data['product_condition']);
+	db_query("INSERT INTO {uc_cron_gbase} (nid, enabled, taxonomy, product_condition, new, upc, created, updated)
+                         VALUES ('%d', '%d', '%s', '%d', 1, '%s', NOW(),NOW())",
+                         $data['nid'],$data['enabled'],$data['taxonomy'],$data['product_condition'],$data['upc']);
 }
 
 /**
@@ -81,9 +81,9 @@ function uc_cron_gbase_db_update($data) {
 	if(false === $result) { // Product is not in the uc_cron_gbase table, so add it instead
 		uc_cron_gbase_db_insert($data);
 	} else {
-		db_query("UPDATE {uc_cron_gbase} SET enabled = '%d', taxonomy = '%s', product_condition = '%d', updated = NOW()
+		db_query("UPDATE {uc_cron_gbase} SET enabled = '%d', taxonomy = '%s', product_condition = '%d', upc = '%s', updated = NOW()
 							 WHERE nid = '%d'",
-	                         $data['enabled'],$data['taxonomy'],$data['product_condition'],$data['nid']);
+	                         $data['enabled'],$data['taxonomy'],$data['product_condition'],$data['upc'],$data['nid']);
 	}
 }
 
@@ -308,7 +308,7 @@ function uc_cron_gbase_form_alter(&$form, $form_state, $form_id) {
 		// If product should be submitted to Google Base
 	    $form['uc_cron_gbase']['enabled'] = array(
 			'#type'          => 'radios',
-			'#default_value' => isset($defaults['enabled']) ? $defaults['enabled'] : variable_get('uc_cron_gbase_enabled','1'),
+			'#default_value' => !empty($node->uc_cron_gbase['enabled']) ? $node->uc_cron_gbase['enabled'] : variable_get('uc_cron_gbase_enabled','1'),
 			'#options'       => array(
 				1 => t('Submit this product item to Google Merchant'),
 				0 => t('Do not submit this product item to Google Merchant.')
@@ -316,6 +316,16 @@ function uc_cron_gbase_form_alter(&$form, $form_state, $form_id) {
 	    );
 
 	    // Allow used to enter product taxonomy to googles specs
+		$form['uc_cron_gbase']['upc'] = array(
+			'#type'          => 'textfield',
+			'#title'         => t('EAN-8 UPC-14 product code'),
+			'#description'   =>'The product\'s barcode number',
+			'#size'          => 60,
+			'#maxlength'     => 255,
+			'#default_value' => !empty($node->uc_cron_gbase['upc']) ? $node->uc_cron_gbase['upc'] : '',
+		);
+
+	    // Allow user to enter product taxonomy to googles specs
 		$form['uc_cron_gbase']['taxonomy'] = array(
 			'#type'          => 'textfield',
 			'#title'         => t('Product Type'),
@@ -326,13 +336,13 @@ function uc_cron_gbase_form_alter(&$form, $form_state, $form_id) {
 					',
 			'#size'          => 60,
 			'#maxlength'     => 255,
-			'#default_value' => isset($defaults['product_type']) ? $defaults['product_type'] : variable_get('uc_cron_gbase_default_taxonomy', ''),
+			'#default_value' => !empty($node->uc_cron_gbase['product_type']) ? $node->uc_cron_gbase['product_type'] : variable_get('uc_cron_gbase_default_taxonomy', ''),
 		);
 	
 	    $form['uc_cron_gbase']['product_condition'] = array(
 	        '#type'          => 'radios',
 	        '#title'         => 'Product Condition',
-	        '#default_value' => isset($defaults['product_condition']) ? $defaults['product_condition'] : variable_get('uc_cron_gbase_default_condition', 0),
+	        '#default_value' => !empty($node->uc_cron_gbase['product_condition']) ? $node->uc_cron_gbase['product_condition'] : variable_get('uc_cron_gbase_default_condition', 0),
 	        '#options'       => array(
 	            t('New'),
 	            t('Used'),

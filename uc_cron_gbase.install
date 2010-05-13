@@ -129,6 +129,12 @@ function uc_cron_gbase_table_uc_cron_gbase(&$schema) {
 		    'not null'    => FALSE,
 		    'description' => t('TRUE if needs to be inserted on gbase by cron.')
 		),
+		'upc' => array(
+			'type'		  => 'varchar'
+			'length'	  => '25',
+			'not null'	  => FALSE,
+			'description' => t('for UPC-14, EAN-8 and other variants')
+		),
 		'created' => array(
 		    'description' => t('Date/Time row created'),
 		    'type'        => 'datetime',
