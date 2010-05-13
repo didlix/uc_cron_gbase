@@ -68,7 +68,7 @@ function uc_cron_gbase_db_insert($data) {
  * Load gbase info from the database
  */
 function uc_cron_gbase_db_load($nid) {
-	$result = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,created,updated FROM {uc_cron_gbase} WHERE nid = %d', $nid));
+	$result = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,upc,created,updated FROM {uc_cron_gbase} WHERE nid = %d', $nid));
     return $result;
 }
 
@@ -371,7 +371,7 @@ function uc_cron_gbase_load_defaults($nid) {
  */
 function uc_cron_gbase_cron() {
 	
-	$results = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,created,updated FROM {uc_cron_gbase}'));
+	$results = db_fetch_array(db_query('SELECT nid,gid,enabled,taxonomy,product_condition,new,upc,created,updated FROM {uc_cron_gbase}'));
 	dpm($results);
 	
 }
